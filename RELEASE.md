@@ -1,4 +1,5 @@
 # ⚙️ Bug fixes and Improvements
 
-- Fixed Warp PRO subscription #895.
-- Updated docs.
+- Another attempt to bypass Cloudflare 1101 error #940
+- Removed obfuscation
+- Build every 1 hour

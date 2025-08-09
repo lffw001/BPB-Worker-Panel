@@ -209,9 +209,7 @@ async function handleTCPOutBound(
             const match = proxyIP.match(/^(\[.*?\]):(\d+)$/);
             proxyIP = match[1];
             proxyIpPort = +match[2];
-        }
-
-        if (proxyIP.split(':').length === 2) {
+        } else {
             proxyIP = proxyIP.split(':')[0];
             proxyIpPort = +proxyIP.split(':')[1];
         }
@@ -326,7 +324,7 @@ async function TRRemoteSocketToWS(remoteSocket, webSocket, retry, log) {
             })
         )
         .catch((error) => {
-            console.error(`trojanRemoteSocketToWS error:`, error.stack || error);
+            console.error(`TRRemoteSocketToWS error:`, error.stack || error);
             safeCloseWebSocket(webSocket);
         });
 
