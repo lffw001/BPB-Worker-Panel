@@ -52,6 +52,16 @@ async function buildSingBoxDNS(isWarp) {
         }
     ];
 
+    if (settings.outProxy) {
+        const { server } = settings.outProxyParams;
+        if (isDomain(server)) {
+            rules.unshift({
+                domain: server,
+                server: "dns-remote"
+            });
+        }
+    }
+
     if (settings.dohHost.isDomain && !isWarp) {
         const { ipv4, ipv6, host } = settings.dohHost;
         const answers = [
@@ -165,16 +175,8 @@ function buildSingBoxRoutingRules(isWarp) {
     const settings = globalThis.settings;
     const rules = [
         {
-            action: "sniff"
-        },
-        {
-            action: "hijack-dns",
-            mode: "or",
-            rules: [
-                { port: 53 },
-                { protocol: "dns" }
-            ],
-            type: "logical"
+            ip_cidr: "172.18.0.2",
+            action: "hijack-dns"
         },
         {
             clash_mode: "Direct",
@@ -183,6 +185,13 @@ function buildSingBoxRoutingRules(isWarp) {
         {
             clash_mode: "Global",
             outbound: "✅ Selector"
+        },
+        {
+            action: "sniff"
+        },
+        {
+            protocol: "dns",
+            action: "hijack-dns"
         }
     ];
 
@@ -276,6 +285,11 @@ function buildSingBoxRoutingRules(isWarp) {
         rules,
         rule_set: ruleSets,
         auto_detect_interface: true,
+        default_domain_resolver: {
+            server: "dns-direct",
+            strategy: settings.VLTRenableIPv6 ? "prefer_ipv4" : "ipv4_only",
+            rewrite_ttl: 60
+        },
         // override_android_vpn: true,
         final: "✅ Selector"
     }
@@ -288,7 +302,7 @@ function buildSingBoxVLOutbound(remark, address, port, host, sni, allowInsecure,
 
     const outbound = {
         tag: remark,
-        type: "vless",
+        type: atob('dmxlc3M='),
         server: address,
         server_port: port,
         uuid: globalThis.userID,
@@ -303,11 +317,6 @@ function buildSingBoxVLOutbound(remark, address, port, host, sni, allowInsecure,
             path: path,
             type: "ws"
         },
-        domain_resolver: {
-            server: "dns-direct",
-            strategy: settings.VLTRenableIPv6 ? "prefer_ipv4" : "ipv4_only",
-            rewrite_ttl: 60
-        },
         tcp_fast_open: true,
         tcp_multi_path: true
     };
@@ -320,7 +329,7 @@ function buildSingBoxVLOutbound(remark, address, port, host, sni, allowInsecure,
         record_fragment: isFragment,
         utls: {
             enabled: true,
-            fingerprint: "randomized"
+            fingerprint: settings.fingerprint
         }
     };
 
@@ -334,7 +343,7 @@ function buildSingBoxTROutbound(remark, address, port, host, sni, allowInsecure,
 
     const outbound = {
         tag: remark,
-        type: "trojan",
+        type: atob('dHJvamFu'),
         password: globalThis.TRPassword,
         server: address,
         server_port: port,
@@ -348,11 +357,6 @@ function buildSingBoxTROutbound(remark, address, port, host, sni, allowInsecure,
             path: path,
             type: "ws"
         },
-        domain_resolver: {
-            server: "dns-direct",
-            strategy: settings.VLTRenableIPv6 ? "prefer_ipv4" : "ipv4_only",
-            rewrite_ttl: 60
-        },
         tcp_fast_open: true,
         tcp_multi_path: true
     }
@@ -365,7 +369,7 @@ function buildSingBoxTROutbound(remark, address, port, host, sni, allowInsecure,
         record_fragment: isFragment,
         utls: {
             enabled: true,
-            fingerprint: "randomized"
+            fingerprint: settings.fingerprint
         }
     };
 
@@ -421,10 +425,11 @@ function buildSingBoxWarpOutbound(warpConfigs, remark, endpoint, chain) {
     return outbound;
 }
 
-function buildSingBoxChainOutbound(chainProxyParams) {
-    const settings = globalThis.settings;
-    if (["socks", "http"].includes(chainProxyParams.protocol)) {
-        const { protocol, server, port, user, pass } = chainProxyParams;
+function buildSingBoxChainOutbound() {
+    const { outProxyParams } = globalThis.settings;
+    const { protocol } = outProxyParams;
+    if (["socks", "http"].includes(protocol)) {
+        const { server, port, user, pass } = outProxyParams;
 
         const chainOutbound = {
             type: protocol,
@@ -433,11 +438,6 @@ function buildSingBoxChainOutbound(chainProxyParams) {
             server_port: +port,
             username: user,
             password: pass,
-            domain_resolver: {
-                server: "dns-remote",
-                strategy: settings.VLTRenableIPv6 ? "prefer_ipv4" : "ipv4_only",
-                rewrite_ttl: 60
-            },
             detour: ""
         };
 
@@ -445,19 +445,14 @@ function buildSingBoxChainOutbound(chainProxyParams) {
         return chainOutbound;
     }
 
-    const { server, port, uuid, flow, security, type, sni, fp, alpn, pbk, sid, headerType, host, path, serviceName } = chainProxyParams;
+    const { server, port, uuid, flow, security, type, sni, fp, alpn, pbk, sid, headerType, host, path, serviceName } = outProxyParams;
     const chainOutbound = {
-        type: "vless",
+        type: atob('dmxlc3M='),
         tag: "",
         server: server,
         server_port: +port,
         uuid: uuid,
         flow: flow,
-        domain_resolver: {
-            server: "dns-remote",
-            strategy: settings.VLTRenableIPv6 ? "prefer_ipv4" : "ipv4_only",
-            rewrite_ttl: 60
-        },
         detour: ""
     };
 
@@ -591,7 +586,7 @@ export async function getSingBoxCustomConfig(env, isFragment) {
 
     if (settings.outProxy) {
         try {
-            chainProxy = buildSingBoxChainOutbound(settings.outProxyParams, settings.VLTRenableIPv6);
+            chainProxy = buildSingBoxChainOutbound(settings.outProxyParams);
         } catch (error) {
             console.log('An error occured while parsing chain proxy: ', error);
             chainProxy = undefined;
@@ -606,8 +601,8 @@ export async function getSingBoxCustomConfig(env, isFragment) {
 
     let proxyIndex = 1;
     const protocols = [];
-    if (settings.VLConfigs) protocols.push('VLESS');
-    if (settings.TRConfigs) protocols.push('Trojan');
+    if (settings.VLConfigs) protocols.push(atob('VkxFU1M='));
+    if (settings.TRConfigs) protocols.push(atob('VHJvamFu'));
     const tags = [];
     const Addresses = await getConfigAddresses(false);
     const outbounds = {
@@ -615,7 +610,7 @@ export async function getSingBoxCustomConfig(env, isFragment) {
         chains: []
     }
 
-    const ports = isFragment 
+    const ports = isFragment
         ? settings.ports.filter(port => globalThis.defaultHttpsPorts.includes(port))
         : settings.ports;
 
@@ -630,7 +625,7 @@ export async function getSingBoxCustomConfig(env, isFragment) {
                 const host = isCustomAddr ? settings.customCdnHost : globalThis.hostName;
                 const tag = generateRemark(protocolIndex, port, addr, settings.cleanIPs, protocol, configType);
 
-                if (protocol === "VLESS") {
+                if (protocol === atob('VkxFU1M=')) {
                     VLOutbound = buildSingBoxVLOutbound(
                         chainProxy ? `proxy-${proxyIndex}` : tag,
                         addr,
@@ -644,7 +639,7 @@ export async function getSingBoxCustomConfig(env, isFragment) {
                     outbounds.proxies.push(VLOutbound);
                 }
 
-                if (protocol === "Trojan") {
+                if (protocol === atob('VHJvamFu')) {
                     TROutbound = buildSingBoxTROutbound(
                         chainProxy ? `proxy-${proxyIndex}` : tag,
                         addr,
